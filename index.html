@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pico W Portal</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header class="controls">
+        <h1>Portal Pico W</h1>
+        <div class="storage-info">Espaço Livre: <strong>{{FREE_SPACE}}</strong></div>
+        <p>Gerenciador de Imagens Offline</p>
+        
+        <form method="POST" action="/upload" enctype="multipart/form-data" class="upload-form">
+            <input type="file" name="file" id="fileInput" required>
+            <button type="submit">Enviar Imagem</button>
+        </form>
+    </header>
+
+    <main class="gallery">
+        {{IMAGES}}
+    </main>
+
+    <script>
+        // Sistema de fila para não sobrecarregar o Pico W
+        document.addEventListener("DOMContentLoaded", function() {
+            const images = document.querySelectorAll('.tile img');
+            let index = 0;
+
+            function loadNext() {
+                if (index >= images.length) return;
+                const img = images[index];
+                const realSrc = img.getAttribute('data-src');
+                
+                if (realSrc) {
+                    img.src = realSrc;
+                    img.onload = () => {
+                        index++;
+                        setTimeout(loadNext, 50); // Pausa de 50ms entre fotos
+                    };
+                    img.onerror = () => {
+                        console.log("Erro ao carregar: " + realSrc);
+                        index++;
+                        loadNext();
+                    };
+                }
+            }
+            loadNext();
+        });
+    </script>
+</body>
+</html>
