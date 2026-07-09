@@ -23,6 +23,7 @@ def list_download_images():
     html = []
     for name in sorted(files):
         f_size = os.stat("download/" + name)[6] / 1024
+        # No main.py, dentro da função list_download_images:
         html.append(f"""
         <div class='tile'>
             <img data-src='/download/{name}' src=''>
@@ -140,12 +141,14 @@ def run_server():
                             
                             print("Upload concluído:", filename)
                     
-                    cl.send("HTTP/1.1 302 Found\r\nLocation: /\r\n\r\n")
+                    print("Upload concluído:", filename)
                     
+                    # Resposta para o AJAX (JavaScript)
+                    cl.send("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\nOK")
                 except Exception as e:
                     print("Erro no upload:", e)
-                    try: cl.send("HTTP/1.1 302 Found\r\nLocation: /\r\n\r\n")
-                    except: pass
+                    cl.send("HTTP/1.1 500 Internal Server Error\r\n\r\n")
+                    
             # ROTA DELETE
             elif method == "GET" and path.startswith("/delete"):
                 fname = path.split("name=")[1]

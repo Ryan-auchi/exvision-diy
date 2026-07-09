@@ -8,14 +8,21 @@
 </head>
 <body>
     <header class="controls">
-        <h1>Portal Pico W</h1>
+        <h1>EX-VISION albuns</h1>
         <div class="storage-info">Espaço Livre: <strong>{{FREE_SPACE}}</strong></div>
         <p>Gerenciador de Imagens Offline</p>
         
-        <form method="POST" action="/upload" enctype="multipart/form-data" class="upload-form">
-            <input type="file" name="file" id="fileInput" required>
-            <button type="submit">Enviar Imagem</button>
-        </form>
+        <div class="upload-container">
+            <input type="file" id="fileInput">
+            <button onclick="uploadFile()">Enviar Imagem</button>
+            
+            <div id="progressContainer" style="display:none; margin-top:15px;">
+                <div style="background: #eee; border-radius: 10px; height: 20px; width: 100%; overflow: hidden;">
+                    <div id="progressBar" style="background: #007bff; width: 0%; height: 100%; transition: width 0.3s;"></div>
+                </div>
+                <span id="progressText">0%</span>
+            </div>
+        </div>
     </header>
 
     <main class="gallery">
@@ -23,11 +30,46 @@
     </main>
 
     <script>
+        function uploadFile() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            if (!file) return alert("Selecione um arquivo!");
+
+            const formData = new FormData();
+            formData.append("file", file);
+
+            const xhr = new XMLHttpRequest();
+            const container = document.getElementById('progressContainer');
+            const bar = document.getElementById('progressBar');
+            const text = document.getElementById('progressText');
+
+            container.style.display = 'block';
+
+            // Monitora o progresso do envio
+            xhr.upload.addEventListener("progress", (e) => {
+                if (e.lengthComputable) {
+                    const percent = Math.round((e.loaded / e.total) * 100);
+                    bar.style.width = percent + "%";
+                    text.innerText = "Enviando: " + percent + "%";
+                }
+            });
+
+            xhr.onreadystatechange = () => {
+                if (xhr.readyState === 4) {
+                    text.innerText = "Processando no Pico...";
+                    // Pequeno delay para o Pico terminar de salvar antes de recarregar
+                    setTimeout(() => { window.location.reload(); }, 1500);
+                }
+            };
+
+            xhr.open("POST", "/upload", true);
+            xhr.send(formData);
+        }
         // Sistema de fila para não sobrecarregar o Pico W
         document.addEventListener("DOMContentLoaded", function() {
             const images = document.querySelectorAll('.tile img');
             let index = 0;
-
+            
             function loadNext() {
                 if (index >= images.length) return;
                 const img = images[index];
