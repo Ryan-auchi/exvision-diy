@@ -28,7 +28,8 @@ AP_SSID = "EX-VISION"
 # maioria dos celulares. Para exigir senha, defina AP_PASSWORD = "88776688".
 AP_PASSWORD = None
 
-DOWNLOAD_DIR = "download"
+DOWNLOAD_DIR = "download"   # imagens (dados) — na raiz, compartilhada com main.py
+WWW_DIR = "www"             # assets servidos por HTTP (html/css/js)
 IMAGE_EXT = (".jpg", ".jpeg", ".png", ".gif")
 
 # preenchido em start() com o IP do Access Point (ex.: "192.168.4.1")
@@ -156,7 +157,7 @@ server._parse_form_data = _parse_form_data_streaming
 
 @server.route("/", methods=["GET"])
 def index(request):
-    with open("index.html", "r") as f:
+    with open(WWW_DIR + "/index.html", "r") as f:
         html = f.read()
     html = html.replace("{{IMAGES}}", _gallery_html())
     html = html.replace("{{FREE_SPACE}}", _free_space())
@@ -167,7 +168,7 @@ def index(request):
 
 @server.route("/style.css", methods=["GET"])
 def style(request):
-    return server.serve_file("style.css")
+    return server.serve_file(WWW_DIR + "/style.css")
 
 
 @server.route("/download/<name>", methods=["GET"])

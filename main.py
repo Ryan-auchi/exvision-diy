@@ -27,9 +27,36 @@ import _thread
 from rotary_irq_rp2 import RotaryIRQ
 
 
+# cores usadas na tela (o display é redondo: sempre centralizar o texto)
+WHITE = gc9a01.color565(255, 255, 255)
+BLACK = gc9a01.color565(0, 0, 0)
+GREY = gc9a01.color565(100, 100, 100)
+RED = gc9a01.color565(255, 0, 0)
+
+
 # ---------------------------------------------------------------------------
 # utilitários
 # ---------------------------------------------------------------------------
+
+def draw_center(tft, lines, fg, bg=None):
+    """Desenha uma ou mais linhas de texto centralizadas no display redondo.
+
+    Como a tela é circular, os cantos ficam cortados; por isso todo texto é
+    centralizado horizontal e verticalmente. `lines` pode ser uma string ou
+    uma lista de strings (uma por linha).
+    """
+    if isinstance(lines, str):
+        lines = [lines]
+    total_h = len(lines) * font.HEIGHT
+    start_y = (tft.height() - total_h) // 2
+    for i, line in enumerate(lines):
+        x = (tft.width() - font.WIDTH * len(line)) // 2
+        y = start_y + i * font.HEIGHT
+        if bg is None:
+            tft.text(font, line, x, y, fg)
+        else:
+            tft.text(font, line, x, y, fg, bg)
+
 
 def parse_datetime_from_rmc(sentence: str) -> str | None:
     """Extrai data/hora de uma sentença NMEA RMC.
@@ -76,17 +103,7 @@ def init_peripherals():
 
 def display_intro(tft):
     """Desenha texto inicial na tela."""
-    text = "ola ola ola"
-    col_max = tft.width() - font.WIDTH * len(text)
-    row_max = int(tft.height() / font.HEIGHT)
-    tft.text(
-        font,
-        text,
-        int(col_max / 2),
-        int(font.HEIGHT * (row_max // 2)),
-        gc9a01.color565(0, 0, 0),
-        gc9a01.color565(255, 255, 255),
-    )
+    draw_center(tft, "ola ola ola", BLACK, WHITE)
 
 
 def update_display(tft, heading: float, datetime_str: str | None):
@@ -104,16 +121,7 @@ def update_display(tft, heading: float, datetime_str: str | None):
     tft.jpg(f"download/{int(h % 90)}.jpg", 0, 0, gc9a01.FAST)
 
     if datetime_str:
-        col_max = tft.width() - font.WIDTH * len(datetime_str)
-        row_max = int(tft.height() / font.HEIGHT)
-        tft.text(
-            font,
-            datetime_str,
-            int(col_max / 2),
-            int(font.HEIGHT * (row_max // 2)),
-            gc9a01.color565(255, 255, 255),
-            gc9a01.color565(0, 0, 0),
-        )
+        draw_center(tft, datetime_str, WHITE, BLACK)
 
 
 class App:
@@ -189,12 +197,14 @@ class App:
                 retry += 1
                 
             ip = self.ap.ifconfig()[0]
-            # ... resto do seu código de display ...
+            # mostra os dados de conexão centralizados na tela redonda
+            self.tft.fill(0)
+            draw_center(self.tft, ["Portal ativo", "PicoConfig", ip], WHITE)
             return ip
         except Exception as e:
             print(f"Erro detalhado: {e}")
-            self.tft.fill(gc9a01.color565(255, 0, 0))
-            self.tft.text(font, "Erro Hardware WiFi", 10, 10, gc9a01.color565(255, 255, 255))
+            self.tft.fill(RED)
+            draw_center(self.tft, ["Erro Hardware", "WiFi"], WHITE, RED)
             return None
 
     def stop_wifi(self):
@@ -278,11 +288,7 @@ class App:
             text_w = font.WIDTH * len(text)
             x = (screen_w - text_w) // 2
             y = start_y + idx * font.HEIGHT
-            color = (
-                gc9a01.color565(255, 255, 255)
-                if idx == self.menu_idx
-                else gc9a01.color565(100, 100, 100)
-            )
+            color = WHITE if idx == self.menu_idx else GREY
             self.tft.text(font, text, x, y, color)
 
     def process_uart(self):
@@ -319,22 +325,11 @@ class App:
                 update_display(self.tft, heading, None)
         elif self.mode == "datetime":
             if self.latest_datetime:
-                col_max = self.tft.width() - font.WIDTH * len(self.latest_datetime)
-                row_max = int(self.tft.height() / font.HEIGHT)
-                self.tft.text(
-                    font,
-                    self.latest_datetime,
-                    int(col_max / 2),
-                    int(font.HEIGHT * (row_max // 2)),
-                    gc9a01.color565(255, 255, 255),
-                    gc9a01.color565(0, 0, 0),
-                )
+                draw_center(self.tft, self.latest_datetime, WHITE, BLACK)
         elif self.mode == "calibration":
             x, y, z = self.sensor.read_raw()
             self.tft.fill(0)
-            self.tft.text(font, f"X:{x}", 10, 10, gc9a01.color565(255, 255, 255))
-            self.tft.text(font, f"Y:{y}", 10, 20, gc9a01.color565(255, 255, 255))
-            self.tft.text(font, f"Z:{z}", 10, 30, gc9a01.color565(255, 255, 255))
+            draw_center(self.tft, [f"X:{x}", f"Y:{y}", f"Z:{z}"], WHITE)
         elif self.mode == "test":
             # nothing to update every cycle; server runs in background
             pass
