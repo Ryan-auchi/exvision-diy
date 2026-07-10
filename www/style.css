@@ -1,0 +1,102 @@
+body {
+    font-family: sans-serif;
+    background: #f0f2f5;
+    margin: 0;
+    padding: 20px;
+    color: #333;
+}
+
+.controls {
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.storage-info {
+    background: #e1f5fe;
+    color: #01579b;
+    padding: 10px;
+    border-radius: 8px;
+    margin: 10px 0;
+    display: inline-block;
+    border: 1px solid #b3e5fc;
+    font-size: 0.9em;
+}
+
+.upload-form {
+    margin-top: 15px;
+}
+
+.gallery { 
+    display: grid; 
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); 
+    gap: 15px; 
+}
+
+.tile { 
+    background: white; 
+    padding: 10px; 
+    border-radius: 10px; 
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05); 
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.tile img { 
+    width: 100%; 
+    aspect-ratio: 3 / 4; 
+    object-fit: cover; 
+    border-radius: 6px; 
+    background: #eee; 
+    display: block; 
+}
+
+.tile-info {
+    margin-top: 8px;
+    font-size: 0.85em;
+}
+
+.delete-btn {
+    display: inline-block;
+    margin-top: 8px;
+    color: #d32f2f;
+    text-decoration: none;
+    font-weight: bold;
+}
+
+input[type="file"] {
+    margin-bottom: 10px;
+}
+
+button {
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+button:hover {
+    background: #0056b3;
+}
+
+.upload-container {
+    margin-top: 15px;
+    padding: 15px;
+    border: 1px dashed #ccc;
+    border-radius: 10px;
+}
+
+#progressText {
+    display: block;
+    margin-top: 5px;
+    font-size: 0.9em;
+    font-weight: bold;
+    color: #007bff;
+}

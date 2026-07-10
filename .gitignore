@@ -1,5 +1,20 @@
+# Segredos / ambiente
 .env
+.venv/
+
+# Editor / ferramentas de flash
 .vscode/
 .micropico
+
+# Ferramentas de IA (nunca versionar)
+.claude/
+.agents/
+AGENTS.md
+CLAUDE.md
+
+# Python
 __pycache__/
+*.pyc
+
+# Dados: imagens enviadas ao Pico (não fazem parte do código)
 download/
