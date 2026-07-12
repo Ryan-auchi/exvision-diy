@@ -18,3 +18,8 @@ __pycache__/
 
 # Dados: imagens enviadas ao Pico (não fazem parte do código)
 download/
+
+# Arquivos locais (não versionar)
+ESTRUTURA.md
+main2.py
+captive_portal.py
