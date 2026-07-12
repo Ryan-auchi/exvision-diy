@@ -21,5 +21,6 @@ download/
 
 # Arquivos locais (não versionar)
 ESTRUTURA.md
+MONTAGEM.md
 main2.py
 captive_portal.py
