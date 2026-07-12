@@ -14,16 +14,64 @@ Y_MSB_REG = 0x04
 Z_LSB_REG = 0x05
 Z_MSB_REG = 0x06
 
-# COLE OS VALORES DA CALIBRAÇÃO AQUI ↓↓↓
+# Offsets padrão (fallback). A calibração pela tela salva em CALIB_FILE e
+# sobrescreve estes valores no boot seguinte.
 OFFSET_X = -886
 OFFSET_Y = -870
 OFFSET_Z = -743
-# -------------------------------------
+
+CALIB_FILE = "calib.txt"
+DECL_FILE = "decl.txt"
 
 class QMC5883P:
     def __init__(self, i2c):
         self.i2c = i2c
+        self.offset_x = OFFSET_X
+        self.offset_y = OFFSET_Y
+        self.offset_z = OFFSET_Z
+        self.declination = 0.0   # graus somados ao rumo (Norte verdadeiro)
+        self.load_calibration()
+        self.load_declination()
         self.init()
+
+    def load_declination(self):
+        """Carrega a declinação salva; ignora se não existir."""
+        try:
+            with open(DECL_FILE) as f:
+                self.declination = float(f.read().strip())
+        except (OSError, ValueError):
+            pass
+
+    def set_declination(self, degrees, save=True):
+        """Define a declinação (efeito imediato) e opcionalmente persiste."""
+        self.declination = float(degrees)
+        if save:
+            try:
+                with open(DECL_FILE, "w") as f:
+                    f.write(str(self.declination))
+            except OSError:
+                pass
+
+    def load_calibration(self):
+        """Carrega offsets salvos por set_calibration(); ignora se não existir."""
+        try:
+            with open(CALIB_FILE) as f:
+                ox, oy, oz = f.read().strip().split(",")
+                self.offset_x = int(ox)
+                self.offset_y = int(oy)
+                self.offset_z = int(oz)
+        except (OSError, ValueError):
+            pass  # sem arquivo válido: mantém os offsets padrão
+
+    def set_calibration(self, ox, oy, oz, save=True):
+        """Aplica novos offsets (efeito imediato) e opcionalmente persiste."""
+        self.offset_x, self.offset_y, self.offset_z = ox, oy, oz
+        if save:
+            try:
+                with open(CALIB_FILE, "w") as f:
+                    f.write("{},{},{}".format(ox, oy, oz))
+            except OSError:
+                pass
 
     def init(self):
         self.i2c.writeto_mem(QMC5883P_ADDR, MODE_REG, bytes([0xCF]))   # Continuous mode
@@ -48,17 +96,16 @@ class QMC5883P:
     def read_calibrated(self):
         x, y, z = self.read_raw()
 
-        x -= OFFSET_X
-        y -= OFFSET_Y
-        z -= OFFSET_Z
+        x -= self.offset_x
+        y -= self.offset_y
+        z -= self.offset_z
 
         return x, y, z
 
     def heading(self):
         x, y, _ = self.read_calibrated()
 
-        ang = math.degrees(math.atan2(y, x))
-        if ang < 0:
-            ang += 360
+        ang = math.degrees(math.atan2(y, x)) + self.declination
+        ang %= 360
 
         return ang
