@@ -5,17 +5,50 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pico W Portal</title>
     <link rel="stylesheet" href="style.css">
+    <style>
+        /* Ferramenta de corte (canvas 240x320 travado) */
+        .cropper { display: none; margin-top: 15px; }
+        .crop-stage {
+            display: inline-block;
+            border-radius: 8px;
+            overflow: hidden;
+            background: #000;
+            touch-action: none;      /* o arraste controla o pan, não a rolagem */
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+        }
+        /* mostra o canvas 240x320 numa largura confortável no celular */
+        #cropCanvas { width: 210px; height: 280px; display: block; cursor: grab; }
+        #cropCanvas:active { cursor: grabbing; }
+        .crop-row { margin-top: 12px; display: flex; align-items: center; gap: 10px; justify-content: center; }
+        .crop-row label { font-size: 0.85em; color: #555; }
+        #zoom { flex: 1; max-width: 200px; }
+        .crop-hint { font-size: 0.8em; color: #888; margin-top: 6px; }
+    </style>
 </head>
 <body>
     <header class="controls">
         <h1>EX-VISION albuns</h1>
         <div class="storage-info">Espaço Livre: <strong>{{FREE_SPACE}}</strong></div>
         <p>Gerenciador de Imagens Offline</p>
-        
+
         <div class="upload-container">
-            <input type="file" id="fileInput">
-            <button onclick="uploadFile()">Enviar Imagem</button>
-            
+            <input type="file" id="fileInput" accept="image/*">
+
+            <!-- Ferramenta de corte: aparece após escolher a imagem -->
+            <div class="cropper" id="cropper">
+                <div class="crop-stage">
+                    <canvas id="cropCanvas" width="240" height="320"></canvas>
+                </div>
+                <div class="crop-row">
+                    <label for="zoom">Zoom</label>
+                    <input type="range" id="zoom" min="1" max="3" step="0.01" value="1">
+                </div>
+                <div class="crop-hint">Arraste a imagem para enquadrar. Sai sempre 240×320.</div>
+                <div class="crop-row">
+                    <button onclick="uploadFile()">Enviar Imagem</button>
+                </div>
+            </div>
+
             <div id="progressContainer" style="display:none; margin-top:15px;">
                 <div style="background: #eee; border-radius: 10px; height: 20px; width: 100%; overflow: hidden;">
                     <div id="progressBar" style="background: #007bff; width: 0%; height: 100%; transition: width 0.3s;"></div>
@@ -30,62 +63,159 @@
     </main>
 
     <script>
-        function uploadFile() {
-            const fileInput = document.getElementById('fileInput');
-            const file = fileInput.files[0];
-            if (!file) return alert("Selecione um arquivo!");
+        // ---- Ferramenta de corte + resolução (tudo no navegador, offline) ----
+        // Alvo fixo do display: 240 (largura) x 320 (altura), retrato.
+        const FRAME_W = 240, FRAME_H = 320;
+        const canvas = document.getElementById('cropCanvas');
+        const ctx = canvas.getContext('2d');
+        const cropper = document.getElementById('cropper');
+        const zoomInput = document.getElementById('zoom');
+        const fileInput = document.getElementById('fileInput');
 
-            const formData = new FormData();
-            formData.append("file", file);
+        let img = null;        // Image carregada
+        let baseScale = 1;     // escala "cover" (preenche o quadro) com zoom=1
+        let zoom = 1;
+        let panX = 0, panY = 0;
+        let origName = "foto.jpg";
 
-            const xhr = new XMLHttpRequest();
-            const container = document.getElementById('progressContainer');
-            const bar = document.getElementById('progressBar');
-            const text = document.getElementById('progressText');
-
-            container.style.display = 'block';
-
-            // Monitora o progresso do envio
-            xhr.upload.addEventListener("progress", (e) => {
-                if (e.lengthComputable) {
-                    const percent = Math.round((e.loaded / e.total) * 100);
-                    bar.style.width = percent + "%";
-                    text.innerText = "Enviando: " + percent + "%";
-                }
-            });
-
-            xhr.onreadystatechange = () => {
-                if (xhr.readyState === 4) {
-                    text.innerText = "Processando no Pico...";
-                    // Pequeno delay para o Pico terminar de salvar antes de recarregar
-                    setTimeout(() => { window.location.reload(); }, 1500);
-                }
-            };
-
-            xhr.open("POST", "/upload", true);
-            xhr.send(formData);
+        function clampPan() {
+            const dw = img.width * baseScale * zoom;
+            const dh = img.height * baseScale * zoom;
+            // nunca deixa aparecer borda preta: a imagem sempre cobre o quadro
+            panX = Math.min(0, Math.max(FRAME_W - dw, panX));
+            panY = Math.min(0, Math.max(FRAME_H - dh, panY));
         }
-        // Sistema de fila para não sobrecarregar o Pico W
-        document.addEventListener("DOMContentLoaded", function() {
+
+        function redraw() {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, FRAME_W, FRAME_H);
+            if (!img) return;
+            clampPan();
+            const dw = img.width * baseScale * zoom;
+            const dh = img.height * baseScale * zoom;
+            ctx.drawImage(img, panX, panY, dw, dh);
+        }
+
+        function applyZoom(newZoom) {
+            // mantém o ponto do centro do quadro fixo ao dar zoom
+            const cx = (FRAME_W / 2 - panX) / (baseScale * zoom);
+            const cy = (FRAME_H / 2 - panY) / (baseScale * zoom);
+            zoom = newZoom;
+            panX = FRAME_W / 2 - cx * baseScale * zoom;
+            panY = FRAME_H / 2 - cy * baseScale * zoom;
+            redraw();
+        }
+
+        fileInput.addEventListener('change', function () {
+            const file = fileInput.files[0];
+            if (!file) return;
+            origName = file.name || "foto.jpg";
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                img = new Image();
+                img.onload = function () {
+                    // escala "cover": o menor lado preenche o quadro
+                    baseScale = Math.max(FRAME_W / img.width, FRAME_H / img.height);
+                    zoom = 1;
+                    zoomInput.value = 1;
+                    panX = (FRAME_W - img.width * baseScale) / 2;
+                    panY = (FRAME_H - img.height * baseScale) / 2;
+                    cropper.style.display = 'block';
+                    redraw();
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+
+        zoomInput.addEventListener('input', function () {
+            applyZoom(parseFloat(zoomInput.value));
+        });
+
+        // arraste (mouse e toque) para reposicionar
+        let dragging = false, lastX = 0, lastY = 0;
+        function pointerXY(ev) {
+            const t = ev.touches ? ev.touches[0] : ev;
+            return { x: t.clientX, y: t.clientY };
+        }
+        function startDrag(ev) {
+            if (!img) return;
+            dragging = true;
+            const p = pointerXY(ev);
+            lastX = p.x; lastY = p.y;
+        }
+        function moveDrag(ev) {
+            if (!dragging) return;
+            ev.preventDefault();
+            const p = pointerXY(ev);
+            // o canvas é exibido menor que 240x320: converte o deslocamento da tela
+            const scaleX = FRAME_W / canvas.clientWidth;
+            const scaleY = FRAME_H / canvas.clientHeight;
+            panX += (p.x - lastX) * scaleX;
+            panY += (p.y - lastY) * scaleY;
+            lastX = p.x; lastY = p.y;
+            redraw();
+        }
+        function endDrag() { dragging = false; }
+
+        canvas.addEventListener('mousedown', startDrag);
+        window.addEventListener('mousemove', moveDrag);
+        window.addEventListener('mouseup', endDrag);
+        canvas.addEventListener('touchstart', startDrag, { passive: false });
+        canvas.addEventListener('touchmove', moveDrag, { passive: false });
+        canvas.addEventListener('touchend', endDrag);
+
+        function ensureJpgName(name) {
+            const base = name.replace(/\.[^.]+$/, "");
+            return (base || "foto") + ".jpg";
+        }
+
+        function uploadFile() {
+            if (!img) return alert("Selecione uma imagem!");
+
+            // exporta o quadro já em 240x320 como JPEG
+            canvas.toBlob(function (blob) {
+                const formData = new FormData();
+                formData.append("file", blob, ensureJpgName(origName));
+
+                const xhr = new XMLHttpRequest();
+                const container = document.getElementById('progressContainer');
+                const bar = document.getElementById('progressBar');
+                const text = document.getElementById('progressText');
+                container.style.display = 'block';
+
+                xhr.upload.addEventListener("progress", (e) => {
+                    if (e.lengthComputable) {
+                        const percent = Math.round((e.loaded / e.total) * 100);
+                        bar.style.width = percent + "%";
+                        text.innerText = "Enviando: " + percent + "%";
+                    }
+                });
+
+                xhr.onreadystatechange = () => {
+                    if (xhr.readyState === 4) {
+                        text.innerText = "Processando no Pico...";
+                        setTimeout(() => { window.location.reload(); }, 1500);
+                    }
+                };
+
+                xhr.open("POST", "/upload", true);
+                xhr.send(formData);
+            }, "image/jpeg", 0.85);
+        }
+
+        // ---- Galeria: carrega as miniaturas em fila (não sobrecarrega o Pico) ----
+        document.addEventListener("DOMContentLoaded", function () {
             const images = document.querySelectorAll('.tile img');
             let index = 0;
-            
             function loadNext() {
                 if (index >= images.length) return;
-                const img = images[index];
-                const realSrc = img.getAttribute('data-src');
-                
+                const el = images[index];
+                const realSrc = el.getAttribute('data-src');
                 if (realSrc) {
-                    img.src = realSrc;
-                    img.onload = () => {
-                        index++;
-                        setTimeout(loadNext, 50); // Pausa de 50ms entre fotos
-                    };
-                    img.onerror = () => {
-                        console.log("Erro ao carregar: " + realSrc);
-                        index++;
-                        loadNext();
-                    };
+                    el.src = realSrc;
+                    el.onload = () => { index++; setTimeout(loadNext, 50); };
+                    el.onerror = () => { index++; loadNext(); };
                 }
             }
             loadNext();
