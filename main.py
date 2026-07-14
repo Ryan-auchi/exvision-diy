@@ -207,22 +207,52 @@ def fmt_distance(km):
     return "{:d} km".format(int(km))
 
 
-def draw_arrow(tft, cx, cy, angle_deg, color, r_in, r_out, head=18, thick=2):
-    """Seta apontando do centro para `angle_deg` (0 = cima, horário)."""
+def _polar(cx, cy, r, angle_deg):
+    """Ponto no raio `r` e ângulo `angle_deg` (0 = cima, sentido horário)."""
     a = math.radians(angle_deg)
-    ux, uy = math.sin(a), -math.cos(a)
-    px, py = -uy, ux
-    tx, ty = cx + ux * r_out, cy + uy * r_out
-    bx, by = cx + ux * r_in, cy + uy * r_in
+    return cx + r * math.sin(a), cy - r * math.cos(a)
+
+
+def thick_line(tft, x0, y0, x1, y1, color, thick=3):
+    """Linha com espessura (várias linhas paralelas deslocadas na normal)."""
+    dx, dy = x1 - x0, y1 - y0
+    length = math.sqrt(dx * dx + dy * dy) or 1.0
+    nx, ny = -dy / length, dx / length     # normal unitária
     for off in range(-thick, thick + 1):
-        tft.line(int(bx + px * off), int(by + py * off),
-                 int(tx + px * off), int(ty + py * off), color)
-    for sgn in (1, -1):
-        ha = a + sgn * math.radians(150)
-        hx, hy = tx + head * math.sin(ha), ty - head * math.cos(ha)
-        for off in (-1, 0, 1):
-            tft.line(int(tx + px * off), int(ty + py * off),
-                     int(hx + px * off), int(hy + py * off), color)
+        tft.line(int(x0 + nx * off), int(y0 + ny * off),
+                 int(x1 + nx * off), int(y1 + ny * off), color)
+
+
+def draw_compass_ring(tft, cx, cy, angle_deg, color, r_ring):
+    """Bússola em anel com ponteiro em CHEVRON DUPLO apontando para `angle_deg`.
+
+    angle 0 = frente do aparelho (topo), sentido horário. Sem marcador fixo de
+    direção: o mostrador é fixo, então só o chevron indica o alvo. O miolo fica
+    livre para o texto da distância.
+    """
+    cx = int(cx)
+    cy = int(cy)
+    # aro + marcas simétricas a cada 45 graus (só moldura, não indicam direção)
+    tft.circle(cx, cy, r_ring, GREY)
+    for k in range(8):
+        ox, oy = _polar(cx, cy, r_ring, k * 45)
+        ix, iy = _polar(cx, cy, r_ring - 8, k * 45)
+        tft.line(int(ox), int(oy), int(ix), int(iy), GREY)
+
+    # chevron duplo: dois "V" apontando para fora, na direção do alvo
+    a = math.radians(angle_deg)
+    ux, uy = math.sin(a), -math.cos(a)     # radial (para fora, rumo ao alvo)
+    px, py = math.cos(a), math.sin(a)      # perpendicular (abertura do "V")
+    hw = 16                                # meia-abertura de cada chevron
+    for apex_r, arm_r in ((r_ring - 4, r_ring - 18), (r_ring - 18, r_ring - 32)):
+        ax = cx + ux * apex_r
+        ay = cy + uy * apex_r
+        lx = cx + ux * arm_r + px * hw
+        ly = cy + uy * arm_r + py * hw
+        rx = cx + ux * arm_r - px * hw
+        ry = cy + uy * arm_r - py * hw
+        thick_line(tft, lx, ly, ax, ay, color)
+        thick_line(tft, rx, ry, ax, ay, color)
 
 
 def draw_center(tft, lines, fg, bg=None):
@@ -675,7 +705,7 @@ class App:
         tft = self.tft
         cx, cy = tft.width() // 2, tft.height() // 2
         tft.fill(0)
-        draw_arrow(tft, cx, cy, rel, GREEN, r_in=46, r_out=cx - 14)
+        draw_compass_ring(tft, cx, cy, rel, GREEN, min(cx, cy) - 8)
         w = font.WIDTH * len(dist_txt)
         tft.text(font, dist_txt, cx - w // 2, cy - font.HEIGHT // 2, WHITE, BLACK)
 
