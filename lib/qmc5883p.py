@@ -23,6 +23,18 @@ OFFSET_Z = -743
 CALIB_FILE = "calib.txt"
 DECL_FILE = "decl.txt"
 
+# Correção de orientação do rumo (ver MONTAGEM_PHOTOFRAME.md > "Bússola aponta
+# torta"). Defaults NEUTROS (0/0) = rumo cru atan2(y,x): não força nenhuma
+# correção nesta montagem (ILI9341 retrato, ainda não testada).
+#
+# HEADING_MODE (0..7): orientação dos eixos do sensor -> corrige o SENTIDO de
+#   rotação (bit0 = troca X<->Y, bit1 = nega X, bit2 = nega Y).
+# HEADING_OFFSET (graus): deslocamento constante -> corrige a "frente" (ex.:
+#   tela girada). Ajuste em passos de 90.
+# Referência: na montagem GC9A01 deitado ficou MODE=4, OFFSET=90.
+HEADING_MODE = 0
+HEADING_OFFSET = 0
+
 class QMC5883P:
     def __init__(self, i2c):
         self.i2c = i2c
@@ -105,7 +117,15 @@ class QMC5883P:
     def heading(self):
         x, y, _ = self.read_calibrated()
 
-        ang = math.degrees(math.atan2(y, x)) + self.declination
+        # orientação dos eixos (corrige rumo espelhado / sentido invertido)
+        if HEADING_MODE & 1:
+            x, y = y, x
+        if HEADING_MODE & 2:
+            x = -x
+        if HEADING_MODE & 4:
+            y = -y
+
+        ang = math.degrees(math.atan2(y, x)) + self.declination + HEADING_OFFSET
         ang %= 360
 
         return ang
