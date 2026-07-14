@@ -23,6 +23,25 @@ OFFSET_Z = -743
 CALIB_FILE = "calib.txt"
 DECL_FILE = "decl.txt"
 
+# Orientação dos eixos do magnetômetro em relação ao aparelho.
+# Os eixos X/Y do chip podem estar trocados e/ou invertidos -> a bússola aponta
+# torta/espelhada. As 8 combinações possíveis estão cobertas por este modo
+# (0..7): bit0 = troca X<->Y, bit1 = nega X, bit2 = nega Y.
+#
+# Como acertar (tela Tests -> Magnetometro):
+#   1. Aponte a FRENTE do aparelho para o Norte real -> Rumo deve dar ~0.
+#   2. Aponte a FRENTE para o Leste -> Rumo deve dar ~90 (girar p/ direita
+#      aumenta os graus). S = 180, O = 270.
+#   Se não bater, incremente HEADING_MODE (0,1,2,...,7) e teste de novo.
+#   Uma das 8 combinações deixa o rumo correto.
+HEADING_MODE = 4
+
+# Ajuste fino do zero (graus), somado ao rumo. Corrige um deslocamento CONSTANTE
+# depois que o sentido de rotação (HEADING_MODE) já está certo. Ex.: a tela
+# montada deitada gira o desenho 90 graus. Se a seta ficar 90 graus torta, use
+# 90/180/270 até acertar; se já estiver certa, deixe 0.
+HEADING_OFFSET = 90
+
 class QMC5883P:
     def __init__(self, i2c):
         self.i2c = i2c
@@ -105,7 +124,15 @@ class QMC5883P:
     def heading(self):
         x, y, _ = self.read_calibrated()
 
-        ang = math.degrees(math.atan2(y, x)) + self.declination
+        # aplica a orientação dos eixos escolhida em HEADING_MODE
+        if HEADING_MODE & 1:
+            x, y = y, x
+        if HEADING_MODE & 2:
+            x = -x
+        if HEADING_MODE & 4:
+            y = -y
+
+        ang = math.degrees(math.atan2(y, x)) + self.declination + HEADING_OFFSET
         ang %= 360
 
         return ang
